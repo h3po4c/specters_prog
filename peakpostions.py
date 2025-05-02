@@ -50,14 +50,13 @@ def run_peak_positions(x, ys, temperatures_all):
 
     peak_positions = [[] for _ in range(n_peaks)]
 
-    for spectrum in ys.T:
-        peaks, _ = find_peaks(spectrum)
-        peak_x = x[peaks]
-        peak_y = spectrum[peaks]
-
-        for i, center in enumerate(peak_guesses):
+    for i, center in enumerate(peak_guesses):
+        show_found_peaks(x, ys, center, delta, i)
+        for spectrum in ys.T:
+            peaks, _ = find_peaks(spectrum)
+            peak_x = x[peaks]
+            peak_y = spectrum[peaks]
             mask = (peak_x >= center - delta) & (peak_x <= center + delta)
-
             if np.any(mask):
                 idx = peaks[mask][np.argmax(peak_y[mask])]
                 peak_positions[i].append(x[idx])
@@ -66,7 +65,6 @@ def run_peak_positions(x, ys, temperatures_all):
 
     data = {'Temperature (K)': temperatures_all}
     for i in range(n_peaks):
-        show_found_peaks(x, ys, center, delta, i)
         data[f'Peak {i+1} Position (eV)'] = peak_positions[i]
 
     df = pd.DataFrame(data)
@@ -75,8 +73,8 @@ def run_peak_positions(x, ys, temperatures_all):
     for i in range(n_peaks):
         plt.plot(df['Temperature (K)'], df[f'Peak {i+1} Position (eV)'], 'o-', label=f'Peak {i+1}')
 
-    plt.xlabel('Температура (K)')
-    plt.ylabel('Положение пика (эВ)')
+    plt.xlabel('Temperature (K)')
+    plt.ylabel('Peak position (eV)')
     plt.title('Смещение положения пиков в зависимости от температуры')
     plt.legend()
     plt.grid(True)
