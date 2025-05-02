@@ -1,8 +1,11 @@
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
 from scipy.integrate import simpson
 from scipy.stats import pearsonr
+
+from utils import save_results
 
 
 def integrate_peak(x, y, x_min, x_max):
@@ -16,104 +19,87 @@ def integrate_peak(x, y, x_min, x_max):
 
 
 def run_peak_integration(x, ys, temperatures):
+    n_peaks = int(input("Введите количество пиков: "))
+
     fig, ax = plt.subplots(figsize=(10, 6))
-    plt.subplots_adjust(left=0.1, bottom=0.35)
+    plt.subplots_adjust(left=0.1, bottom=0.35 + n_peaks * 0.04)
+
     for i in range(ys.shape[1]):
         ax.plot(x, ys[:, i], alpha=0.5)
 
     ax.set_xlabel('Энергия (эВ)')
     ax.set_ylabel('Интенсивность (отн. ед./эВ)')
-    ax.set_title('Выберите диапазоны интегрирования для двух пиков')
+    ax.set_title('Выберите диапазоны интегрирования для каждого пика')
     ax.grid(True)
 
-    fill1 = None
-    fill2 = None
+    sliders = []
     vlines = []
+    fills = []
 
-    ax_xmin1 = plt.axes([0.1, 0.2, 0.35, 0.03])
-    ax_xmax1 = plt.axes([0.55, 0.2, 0.35, 0.03])
-    ax_xmin2 = plt.axes([0.1, 0.1, 0.35, 0.03])
-    ax_xmax2 = plt.axes([0.55, 0.1, 0.35, 0.03])
-
-    slider_xmin1 = Slider(ax_xmin1, 'E1 min', x.min(), x.max(), valinit=x.min())
-    slider_xmax1 = Slider(ax_xmax1, 'E1 max', x.min(), x.max(), valinit=x.max())
-    slider_xmin2 = Slider(ax_xmin2, 'E2 min', x.min(), x.max(), valinit=x.min())
-    slider_xmax2 = Slider(ax_xmax2, 'E2 max', x.min(), x.max(), valinit=x.max())
+    x_mins = [x.min()] * n_peaks
+    x_maxs = [x.max()] * n_peaks
 
     def update(val):
-        nonlocal fill1, fill2, vlines
-        x1_min = slider_xmin1.val
-        x1_max = slider_xmax1.val
-        x2_min = slider_xmin2.val
-        x2_max = slider_xmax2.val
+        # Удалить старые линии и заливки
+        while vlines:
+            vlines.pop().remove()
+        while fills:
+            fills.pop().remove()
 
-        if x1_min > x1_max:
-            x1_min, x1_max = x1_max, x1_min
-        if x2_min > x2_max:
-            x2_min, x2_max = x2_max, x2_min
+        # Нарисовать новые
+        for i in range(n_peaks):
+            x_mins[i] = sliders[i * 2].val
+            x_maxs[i] = sliders[i * 2 + 1].val
+            if x_mins[i] > x_maxs[i]:
+                x_mins[i], x_maxs[i] = x_maxs[i], x_mins[i]
 
-        if fill1:
-            fill1.remove()
-        if fill2:
-            fill2.remove()
+            # Вертикальные маркеры
+            vlines.append(ax.axvline(x_mins[i], color=f'C{i}', linestyle='--'))
+            vlines.append(ax.axvline(x_maxs[i], color=f'C{i}', linestyle='--'))
 
-        for vline in vlines:
-            vline.remove()
-        vlines = []
-
-        mask1 = (x >= x1_min) & (x <= x1_max)
-        mask2 = (x >= x2_min) & (x <= x2_max)
-        fill1 = ax.fill_between(x[mask1], ys[:, 0][mask1], alpha=0.5, color='orange')
-        fill2 = ax.fill_between(x[mask2], ys[:, 0][mask2], alpha=0.5, color='green')
-
-        vlines.append(ax.axvline(x1_min, color='orange', linestyle='--'))
-        vlines.append(ax.axvline(x1_max, color='orange', linestyle='--'))
-        vlines.append(ax.axvline(x2_min, color='green', linestyle='--'))
-        vlines.append(ax.axvline(x2_max, color='green', linestyle='--'))
+            # Закрашивание
+            mask = (x >= x_mins[i]) & (x <= x_maxs[i])
+            fills.append(ax.fill_between(x[mask], ys[:, 0][mask], alpha=0.2, color=f'C{i}'))
+            fills.append(ax.fill_between(x[mask], ys[:, -1][mask], alpha=0.2, color=f'C{i}'))
 
         fig.canvas.draw_idle()
 
-    slider_xmin1.on_changed(update)
-    slider_xmax1.on_changed(update)
-    slider_xmin2.on_changed(update)
-    slider_xmax2.on_changed(update)
+    # Слайдеры
+    for i in range(n_peaks):
+        ax_min = plt.axes([0.1, 0.05 + i * 0.06, 0.35, 0.03])
+        ax_max = plt.axes([0.55, 0.05 + i * 0.06, 0.35, 0.03])
+        s_min = Slider(ax_min, f'E{i+1} min', x.min(), x.max(), valinit=x.min())
+        s_max = Slider(ax_max, f'E{i+1} max', x.min(), x.max(), valinit=x.max())
+        s_min.on_changed(update)
+        s_max.on_changed(update)
+        sliders.extend([s_min, s_max])
 
     update(None)
     plt.show()
-
-    x1_min = slider_xmin1.val
-    x1_max = slider_xmax1.val
-    x2_min = slider_xmin2.val
-    x2_max = slider_xmax2.val
-
-    areas_peak1 = []
-    areas_peak2 = []
-
-    for i in range(ys.shape[1]):
-        area1 = integrate_peak(x, ys[:, i], x1_min, x1_max)
-        area2 = integrate_peak(x, ys[:, i], x2_min, x2_max)
-        areas_peak1.append(area1)
-        areas_peak2.append(area2)
-
-    areas_peak1 = np.array(areas_peak1)
-    areas_peak2 = np.array(areas_peak2)
-    sum_peaks = areas_peak1 + areas_peak2
-
-    correlation, _ = pearsonr(areas_peak1, areas_peak2)
-    mean_sum = np.mean(sum_peaks)
-    std_sum = np.std(sum_peaks)
-    rel_std = std_sum / mean_sum * 100
-
-    plt.figure(figsize=(10, 6))
-    plt.plot(temperatures, areas_peak1, 'o-', label='Площадь Пика 1')
-    plt.plot(temperatures, areas_peak2, 'o-', label='Площадь Пика 2')
-    plt.plot(temperatures, sum_peaks, 'o-', label='Сумма Пиков')
-    plt.hlines(0, temperatures.min(), temperatures.max(), colors='gray', linestyles=':')
-    plt.hlines(mean_sum, temperatures.min(), temperatures.max(), colors='red', linestyles='--', label=f'Среднее: {mean_sum:.2f}, Погрешность: ±{rel_std:.2f}%')
-    plt.fill_between(temperatures, mean_sum - std_sum, mean_sum + std_sum, color='red', alpha=0.2)
+    areas_by_peak = []
+    for i in range(n_peaks):
+        areas = []
+        for j in range(ys.shape[1]):
+            area = integrate_peak(x, ys[:, j], x_mins[i], x_maxs[i])
+            areas.append(area)
+        areas_by_peak.append(areas)
+    sum_peaks = np.sum(areas_by_peak, axis=0)
+    plt.plot(temperatures, sum_peaks, 'o-', label=f'Суммарная интенсивность')
+    for i in range(n_peaks):
+        plt.plot(temperatures, areas_by_peak[i], 'o-', label=f'Пик {i + 1}')
     plt.xlabel('Температура (K)')
-    plt.ylabel('Площадь пика - Среднее')
-    plt.title(f'Коэффициент корреляции: {correlation:.3f}')
+    plt.ylabel('Площадь пика')
+    plt.title('Зависимость площади пиков от температуры')
     plt.legend()
     plt.grid(True)
+    plt.tight_layout()
     plt.show()
+
+
+    df = pd.DataFrame({'Temperature, K': temperatures})
+    for i in range(n_peaks):
+        df[f'Square of peak {i+1}'] = areas_by_peak[i]
+    df['Summ of intensity'] = sum_peaks
+    save = input("Сохранить результаты? (y/n): ").strip().lower()
+    if save == 'y':
+        save_results(df)
