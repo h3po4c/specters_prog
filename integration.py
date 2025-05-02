@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.widgets import Slider, CheckButtons, Button
+from matplotlib.widgets import Slider
 from scipy.integrate import simpson
 from scipy.stats import pearsonr
 
@@ -15,7 +15,7 @@ def integrate_peak(x, y, x_min, x_max):
     return simpson(y_selected, x_selected)
 
 
-def run_peak_integration(x, ys):
+def run_peak_integration(x, ys, temperatures):
     fig, ax = plt.subplots(figsize=(10, 6))
     plt.subplots_adjust(left=0.1, bottom=0.35)
     for i in range(ys.shape[1]):

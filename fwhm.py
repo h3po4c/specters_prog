@@ -8,36 +8,40 @@ from utils import save_results, show_found_peaks
 
 
 def run_fwhm_analysis(x, ys, temperatures_all):
-
     def compute_fwhm(x, y, center, delta):
-        y = np.array(y)
+        from scipy.signal import find_peaks
+        from scipy.interpolate import interp1d
 
-        # Ограничиваем область поиска
+        y = np.array(y)
+        y_centered = y - np.min(y)
+
+        # 1. Найти максимум в заданном диапазоне
         mask = (x >= center - delta) & (x <= center + delta)
         if np.sum(mask) < 5:
             return np.nan
 
-        y_sub = y[mask]
+        x_sub = x[mask]
+        y_sub = y_centered[mask]
 
         peaks, _ = find_peaks(y_sub)
         if len(peaks) == 0:
             return np.nan
 
-        peak_idx = peaks[np.argmax(y_sub[peaks])]
-        peak_y = y_sub[peak_idx]
+        local_peak_idx = peaks[np.argmax(y_sub[peaks])]
+        global_peak_idx = np.where(y_centered == y_sub[local_peak_idx])[0][0]
+        peak_y = y_centered[global_peak_idx]
         half_max = peak_y / 2
 
-        # Левое пересечение
+        # 2. Найти пересечения с уровнем полувысоты в полной кривой
         try:
-            left_idx = np.where(y[:peak_idx] <= half_max)[0][-1]
-            x_left = interp1d(y[left_idx:left_idx + 2], x[left_idx:left_idx + 2])(half_max)
+            left_idx = np.where(y_centered[:global_peak_idx] <= half_max)[0][-1]
+            x_left = interp1d(y_centered[left_idx:left_idx + 2], x[left_idx:left_idx + 2])(half_max)
         except:
             x_left = np.nan
 
-        # Правое пересечение
         try:
-            right_idx = np.where(y[peak_idx:] <= half_max)[0][0] + peak_idx
-            x_right = interp1d(y[right_idx - 1:right_idx + 1], x[right_idx - 1:right_idx + 1])(half_max)
+            right_idx = np.where(y_centered[global_peak_idx:] <= half_max)[0][0] + global_peak_idx
+            x_right = interp1d(y_centered[right_idx - 1:right_idx + 1], x[right_idx - 1:right_idx + 1])(half_max)
         except:
             x_right = np.nan
 
@@ -59,12 +63,12 @@ def run_fwhm_analysis(x, ys, temperatures_all):
     regions = []
     initial_delta = 0.05  # Начальное значение дельты
     ax_delta = plt.axes([0.15, 0.05 + n_peaks * 0.03, 0.7, 0.02])
-    slider_delta = Slider(ax_delta, 'Delta (эВ)', 0.01, 0.3, valinit=initial_delta)
+    slider_delta = Slider(ax_delta, 'Delta (eV)', 0.01, 0.3, valinit=initial_delta)
 
     for i in range(n_peaks):
         ax_slider = plt.axes([0.15, 0.05 + i * 0.03, 0.7, 0.02])
         init_val = x[np.argmax(ys[:, 0])] if i == 0 else x[np.argmax(ys[:, 0])]-0.1*i
-        s = Slider(ax_slider, f'Пик {i+1}', x.min(), x.max(), valinit=init_val)
+        s = Slider(ax_slider, f'Peak {i+1}', x.min(), x.max(), valinit=init_val)
         sliders.append(s)
         marker = ax.axvline(s.val, color=f'C{i}', linestyle='--')
         region = ax.axvspan(s.val - initial_delta, s.val + initial_delta, color=f'C{i}', alpha=0.2)
@@ -99,12 +103,11 @@ def run_fwhm_analysis(x, ys, temperatures_all):
         results[f'FWHM peak {i+1} (eV)'] = fwhms
         show_found_peaks(x, ys, center, final_delta, i)
 
-
     df = pd.DataFrame(results)
 
     plt.figure(figsize=(8, 5))
     for i in range(n_peaks):
-        plt.plot(df['Temperature (K)'], df[f'FWHM Пик {i+1} (эВ)'], 'o-', label=f'Пик {i+1}')
+        plt.plot(df['Temperature (K)'], df[f'FWHM peak {i+1} (eV)'], 'o-', label=f'Peak {i+1}')
 
     plt.xlabel('Temperature (K)')
     plt.ylabel('FWHM (eV)')
