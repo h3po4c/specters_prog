@@ -35,3 +35,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    input("press enter to close program")

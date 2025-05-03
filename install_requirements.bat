@@ -1,0 +1,13 @@
+echo [1] Checking for venv...
+IF NOT EXIST venv (
+    echo No venv exist, creating...
+    python -m venv venv
+)
+
+echo [2] Activating venv...
+call venv\Scripts\activate.bat
+
+echo [3] Installing requirements...
+pip install --upgrade pip >nul
+pip install -r requirements.txt
+pause
