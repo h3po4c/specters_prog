@@ -4,6 +4,7 @@
 build/
 output/
 venv/
+dist/
 __pycache__/
 main.spec
 /workspace.xml
